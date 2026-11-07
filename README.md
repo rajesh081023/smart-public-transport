@@ -2,6 +2,12 @@
 
 A Flask-based smart mobility and public transport demo for planning routes, comparing transport modes, exploring EV charging stations, and tracking carbon impact.
 
+## Live demo
+
+Open the running application: [Smart Public Transport](https://chaitanyacc.pythonanywhere.com/).
+
+The source code is hosted on GitHub; the live Flask app runs on PythonAnywhere.
+
 ## Features
 
 - Smart journey planner with origin/destination comparison
