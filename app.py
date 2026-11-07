@@ -407,7 +407,7 @@ def api_plan_journey():
     API endpoint calculating multi-modal travel options, distance, duration,
     cost, emissions, and smart clean recommendations.
     """
-    data = request.get_json() or request.form
+    data = request.get_json(silent=True) or request.form
     origin_id = data.get('origin_id')
     destination_id = data.get('destination_id')
     custom_distance = data.get('custom_distance')
@@ -481,7 +481,7 @@ def api_plan_journey():
 @login_required
 def api_save_journey():
     """Save a planned journey to the logged-in user's profile."""
-    data = request.get_json() or request.form
+    data = request.get_json(silent=True) or request.form
     user_id = session['user_id']
     origin = data.get('origin', 'Custom Origin')
     destination = data.get('destination', 'Custom Destination')
@@ -663,7 +663,7 @@ def api_calculate_emissions():
     API endpoint calculating emissions across all transit modes for single,
     daily, monthly, or annual commutes.
     """
-    data = request.get_json() or request.form
+    data = request.get_json(silent=True) or request.form
     try:
         distance_km = float(data.get('distance_km', 10.0))
         trips_per_day = int(data.get('trips_per_day', 2)) # Commute round-trip = 2
