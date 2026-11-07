@@ -3,25 +3,117 @@
 {% block title %}Journey Planner{% endblock %}
 
 {% block content %}
+  <style>
+    .planner-form { max-width: 620px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; }
+    .planner-form label { display: grid; gap: 6px; font-weight: 600; }
+    .planner-form button { grid-column: 1 / -1; justify-self: start; padding: 12px 20px; }
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 18px; }
+    .result-card { border: 1px solid #dbe3ef; border-radius: 10px; padding: 16px; background: #fff; }
+    .result-card.recommended { border: 2px solid #16a34a; background: #f0fdf4; }
+    .result-card h3 { margin: 0 0 8px; }
+    .result-card p { margin: 6px 0; }
+    .result-badge { display: inline-block; margin: 5px 4px 0 0; padding: 4px 8px; border-radius: 999px; background: #e0e7ff; font-size: .82rem; }
+    .notice { margin-top: 12px; color: #475569; }
+    .error-message { color: #b91c1c; }
+  </style>
+
   <section class="card">
     <h1>Smart Journey Planner</h1>
-    <p>Compare walking, cycling, metro, bus, EV, and car travel options.</p>
-    <form method="post" action="/api/plan-journey">
-      <label>Origin</label>
-      <select name="origin_id">
-        {% for stop in stops %}
-          <option value="{{ stop.id }}">{{ stop.stop_name }}</option>
-        {% endfor %}
-      </select>
+    <p>Compare estimated travel time, fare, and emissions. Transit times and distances are estimates.</p>
+    <form id="journey-form" method="post" action="{{ url_for('api_plan_journey') }}" class="planner-form">
+      <label for="origin-id">Origin
+        <select id="origin-id" name="origin_id" required>
+          <option value="" selected disabled>Select origin</option>
+          {% for stop in stops %}
+            <option value="{{ stop.id }}">{{ stop.stop_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-      <label>Destination</label>
-      <select name="destination_id">
-        {% for stop in stops %}
-          <option value="{{ stop.id }}">{{ stop.stop_name }}</option>
-        {% endfor %}
-      </select>
+      <label for="destination-id">Destination
+        <select id="destination-id" name="destination_id" required>
+          <option value="" selected disabled>Select destination</option>
+          {% for stop in stops %}
+            <option value="{{ stop.id }}">{{ stop.stop_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-      <button type="submit">Plan Journey</button>
+      <button type="submit">Plan journey</button>
     </form>
+    <p id="journey-status" class="notice" role="status" aria-live="polite"></p>
   </section>
+
+  <section id="journey-results" class="card" aria-live="polite" hidden></section>
+
+  <script>
+    (() => {
+      const form = document.getElementById('journey-form');
+      const status = document.getElementById('journey-status');
+      const results = document.getElementById('journey-results');
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+      const number = (value, digits = 2) => Number(value).toFixed(digits);
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        status.classList.remove('error-message');
+        status.textContent = 'Calculating your journey…';
+        results.hidden = true;
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            body: new FormData(form)
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Could not plan this journey.');
+
+          const options = data.options.map((option) => `
+            <article class="result-card ${option.is_recommended ? 'recommended' : ''}">
+              <h3>${escapeHtml(option.mode_name)}${option.is_recommended ? ' · Recommended' : ''}</h3>
+              <p><strong>${escapeHtml(option.time_min)} min</strong> · ₹${number(option.cost)}</p>
+              <p>${number(option.co2_emitted_kg, 3)} kg CO₂ emitted</p>
+              <p>${number(option.co2_saved_kg, 3)} kg CO₂ saved (${number(option.co2_saving_pct, 1)}%)</p>
+              ${option.calories_burned ? `<p>${escapeHtml(option.calories_burned)} kcal burned</p>` : ''}
+              ${(option.badges || []).map((badge) => `<span class="result-badge">${escapeHtml(badge.text)}</span>`).join('')}
+            </article>
+          `).join('');
+
+          const stations = data.nearby_ev_stations.length
+            ? `<div class="result-grid">${data.nearby_ev_stations.map((station) => `
+                <article class="result-card">
+                  <h3>${escapeHtml(station.station_name)}</h3>
+                  <p>${escapeHtml(station.operator)} · ${escapeHtml(station.status)}</p>
+                  <p>${escapeHtml(station.available_ports)} of ${escapeHtml(station.total_ports)} ports available</p>
+                  <p>${escapeHtml(station.distance_km)} km from the nearest trip endpoint</p>
+                  <p>${escapeHtml(station.address)}</p>
+                </article>
+              `).join('')}</div>`
+            : `<p>No charging stations were found within ${escapeHtml(data.nearby_ev_radius_km)} km of either endpoint.</p>`;
+
+          const routes = data.direct_routes.length
+            ? `<ul>${data.direct_routes.map((route) => `<li>${escapeHtml(route.route_number)} — ${escapeHtml(route.route_name)}</li>`).join('')}</ul>`
+            : '<p>No direct route between these stops is in the sample transit data.</p>';
+
+          results.innerHTML = `
+            <h2>Journey options</h2>
+            <p><strong>${escapeHtml(data.origin.stop_name)}</strong> to <strong>${escapeHtml(data.destination.stop_name)}</strong></p>
+            <p>Estimated distance: <strong>${number(data.distance_km)} km</strong></p>
+            <p>Petrol car baseline: ${escapeHtml(data.baseline_car.time_min)} min, ₹${number(data.baseline_car.cost)}, ${number(data.baseline_car.co2_emitted_kg, 3)} kg CO₂.</p>
+            <div class="result-grid">${options}</div>
+            <h2>Direct transit routes</h2>${routes}
+            <h2>Nearby EV charging</h2>${stations}
+          `;
+          results.hidden = false;
+          status.textContent = '';
+        } catch (error) {
+          status.classList.add('error-message');
+          status.textContent = error.message || 'Could not reach the journey planner.';
+        }
+      });
+    })();
+  </script>
 {% endblock %}

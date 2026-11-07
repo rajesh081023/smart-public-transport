@@ -3,21 +3,92 @@
 {% block title %}Carbon Calculator{% endblock %}
 
 {% block content %}
+  <style>
+    .calculator-form { max-width: 620px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; }
+    .calculator-form label { display: grid; gap: 6px; font-weight: 600; }
+    .calculator-form button { grid-column: 1 / -1; justify-self: start; padding: 12px 20px; }
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 18px; }
+    .result-card { border: 1px solid #dbe3ef; border-radius: 10px; padding: 16px; background: #fff; }
+    .result-card.baseline { border: 2px solid #64748b; background: #f8fafc; }
+    .result-card h3 { margin: 0 0 8px; }
+    .result-card p { margin: 6px 0; }
+    .notice { margin-top: 12px; color: #475569; }
+    .error-message { color: #b91c1c; }
+  </style>
+
   <section class="card">
     <h1>Carbon Emission & Savings Calculator</h1>
-    <p>Calculate the emissions impact of different commute choices.</p>
-    <form method="post" action="/api/calculate-emissions">
-      <label>Distance (km)</label>
-      <input type="number" name="distance_km" value="15" step="0.1">
-      <label>Trips per day</label>
-      <input type="number" name="trips_per_day" value="2">
-      <select name="period">
-        <option value="annual">Annual</option>
-        <option value="monthly">Monthly</option>
-        <option value="weekly">Weekly</option>
-        <option value="single">Single Trip</option>
-      </select>
-      <button type="submit">Calculate</button>
+    <p>Compare estimated emissions for different transport modes.</p>
+    <form id="carbon-form" method="post" action="{{ url_for('api_calculate_emissions') }}" class="calculator-form">
+      <label for="distance-km">Distance per trip (km)
+        <input id="distance-km" type="number" name="distance_km" value="15" min="0.1" max="200" step="0.1" required>
+      </label>
+      <label for="trips-per-day">Trips per day
+        <input id="trips-per-day" type="number" name="trips_per_day" value="2" min="1" max="20" step="1" required>
+      </label>
+      <label for="period">Period
+        <select id="period" name="period" required>
+          <option value="annual">Annual</option>
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+          <option value="single">Single trip</option>
+        </select>
+      </label>
+      <button type="submit">Calculate emissions</button>
     </form>
+    <p id="carbon-status" class="notice" role="status" aria-live="polite"></p>
   </section>
+
+  <section id="carbon-results" class="card" aria-live="polite" hidden></section>
+
+  <script>
+    (() => {
+      const form = document.getElementById('carbon-form');
+      const status = document.getElementById('carbon-status');
+      const results = document.getElementById('carbon-results');
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+      const number = (value, digits = 2) => Number(value).toFixed(digits);
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        status.classList.remove('error-message');
+        status.textContent = 'Calculating emissions…';
+        results.hidden = true;
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            body: new FormData(form)
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Could not calculate emissions.');
+
+          const breakdown = data.breakdown.map((mode) => `
+            <article class="result-card ${mode.mode_key === 'petrol_car' ? 'baseline' : ''}">
+              <h3>${escapeHtml(mode.name)}</h3>
+              <p>${number(mode.emitted_kg)} kg CO₂ emitted</p>
+              <p>${number(mode.saved_kg)} kg CO₂ saved (${number(mode.pct_saved, 1)}%)</p>
+              <p>Tree-year equivalent: ${number(mode.trees_needed, 1)}</p>
+            </article>
+          `).join('');
+
+          results.innerHTML = `
+            <h2>Emissions comparison</h2>
+            <p>${number(data.total_km)} km total over ${escapeHtml(data.period)} (${escapeHtml(data.trips_per_day)} trip(s) per day, ${escapeHtml(data.period_days)} days).</p>
+            <p>Petrol car baseline: <strong>${number(data.baseline_car_kg)} kg CO₂</strong></p>
+            <p>Estimated petrol cost: ₹${number(data.fuel_cost_car)} · Estimated metro savings: ₹${number(data.money_saved_metro)}</p>
+            <div class="result-grid">${breakdown}</div>
+          `;
+          results.hidden = false;
+          status.textContent = '';
+        } catch (error) {
+          status.classList.add('error-message');
+          status.textContent = error.message || 'Could not reach the calculator.';
+        }
+      });
+    })();
+  </script>
 {% endblock %}

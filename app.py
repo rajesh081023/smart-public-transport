@@ -68,19 +68,27 @@ def inject_global_context():
 # HAVERSINE & MOBILITY CALCULATION HELPERS
 # ====================================================================
 
+def great_circle_distance_km(lat1, lon1, lat2, lon2):
+    """Calculate the great-circle distance between two coordinates in km."""
+    earth_radius_km = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
+    a = min(1.0, max(0.0, a))
+    return earth_radius_km * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
     Calculate the great-circle distance between two GPS coordinates in kilometers.
     Applies an urban transit factor (1.28) for real-world road network curvature.
     """
-    R = 6371.0  # Earth radius in kilometers
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2) ** 2 +
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
-         math.sin(dlon / 2) ** 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    direct_km = R * c
+    direct_km = great_circle_distance_km(lat1, lon1, lat2, lon2)
     # Return road network estimated distance (minimum 0.3 km)
     road_km = max(0.3, direct_km * 1.28)
     return round(road_km, 2)
@@ -91,13 +99,17 @@ def compute_trip_metrics(distance_km):
     Compute multi-modal comparisons for a given distance.
     Returns comparison dictionary for all modes.
     """
-    factors = Config.EMISSION_FACTORS
     meta = Config.TRANSPORT_MODES_META
-    
-    # Baseline car emissions in kg
-    baseline_car_co2_kg = (distance_km * factors['petrol_car']) / 1000.0
-    baseline_car_fare = meta['car']['base_fare'] + (distance_km * meta['car']['per_km'])
-    baseline_car_time = round((distance_km / meta['car']['speed_kmh']) * 60) + 5
+    car_info = meta['car']
+
+    # Use the same car assumptions for the baseline and the car option.
+    baseline_car_co2_kg = (distance_km * car_info['co2_per_km']) / 1000.0
+    baseline_car_fare = round(
+        car_info['base_fare'] + (distance_km * car_info['per_km']), 2
+    )
+    baseline_car_time = round(
+        (distance_km / car_info['speed_kmh']) * 60
+    ) + 5  # parking / pickup buffer
 
     options = []
     
@@ -106,10 +118,15 @@ def compute_trip_metrics(distance_km):
     for mode_key in modes_to_evaluate:
         info = meta[mode_key]
         speed = info['speed_kmh']
-        co2_factor = factors.get(mode_key if mode_key in factors else ('petrol_car' if mode_key == 'car' else 'cng_bus'), 0.0)
+        co2_factor = info['co2_per_km']
         
         # Calculate time (minutes)
-        transit_buffer = 4 if mode_key in ['bus', 'metro'] else (2 if mode_key == 'ev' else 0)
+        transit_buffer = (
+            5 if mode_key == 'car'
+            else 4 if mode_key in ['bus', 'metro']
+            else 2 if mode_key == 'ev'
+            else 0
+        )
         est_time_min = round((distance_km / speed) * 60) + transit_buffer
         
         # Calculate fare (INR)
@@ -433,7 +450,7 @@ def api_plan_journey():
     elif custom_distance:
         try:
             distance_km = float(custom_distance)
-            if distance_km <= 0 or distance_km > 200:
+            if not math.isfinite(distance_km) or distance_km < 0.5 or distance_km > 200:
                 return jsonify({'error': 'Please provide a realistic distance between 0.5 km and 200 km.'}), 400
         except ValueError:
             return jsonify({'error': 'Invalid distance value.'}), 400
@@ -442,16 +459,51 @@ def api_plan_journey():
 
     metrics = compute_trip_metrics(distance_km)
     
-    # Relevant EV charging stations near origin/destination
+    # Return only stations within 5 km of either endpoint, ordered by proximity.
     nearby_ev = []
-    if origin_stop:
-        nearby_ev = query_db("""
+    nearby_ev_radius_km = 5.0
+    if origin_stop or dest_stop:
+        stations = query_db("""
             SELECT id, station_name, operator, address, latitude, longitude, 
                    power_rating, available_ports, total_ports, price_per_kwh, status 
             FROM ev_charging_stations 
             WHERE status != 'Maintenance' 
-            LIMIT 5
         """)
+        for station in stations:
+            endpoint_distances = []
+            if origin_stop:
+                station['origin_distance_km'] = round(great_circle_distance_km(
+                    float(origin_stop['latitude']), float(origin_stop['longitude']),
+                    float(station['latitude']), float(station['longitude'])
+                ), 2)
+                endpoint_distances.append(station['origin_distance_km'])
+            else:
+                station['origin_distance_km'] = None
+
+            if dest_stop:
+                station['destination_distance_km'] = round(great_circle_distance_km(
+                    float(dest_stop['latitude']), float(dest_stop['longitude']),
+                    float(station['latitude']), float(station['longitude'])
+                ), 2)
+                endpoint_distances.append(station['destination_distance_km'])
+            else:
+                station['destination_distance_km'] = None
+
+            station['distance_km'] = min(endpoint_distances)
+            station['near_origin'] = (
+                station['origin_distance_km'] is not None
+                and station['origin_distance_km'] <= nearby_ev_radius_km
+            )
+            station['near_destination'] = (
+                station['destination_distance_km'] is not None
+                and station['destination_distance_km'] <= nearby_ev_radius_km
+            )
+
+            if station['distance_km'] <= nearby_ev_radius_km:
+                nearby_ev.append(station)
+
+        nearby_ev.sort(key=lambda station: station['distance_km'])
+        nearby_ev = nearby_ev[:5]
 
     # Relevant bus or metro direct routes
     direct_routes = []
@@ -472,7 +524,8 @@ def api_plan_journey():
         'options': metrics['options'],
         'baseline_car': metrics['baseline_car'],
         'direct_routes': direct_routes,
-        'nearby_ev_stations': nearby_ev
+        'nearby_ev_stations': nearby_ev,
+        'nearby_ev_radius_km': nearby_ev_radius_km
     }
     return jsonify(response)
 
@@ -667,8 +720,8 @@ def api_calculate_emissions():
     try:
         distance_km = float(data.get('distance_km', 10.0))
         trips_per_day = int(data.get('trips_per_day', 2)) # Commute round-trip = 2
-        period = data.get('period', 'annual') # 'single', 'weekly', 'monthly', 'annual'
-    except ValueError:
+        period = str(data.get('period', 'annual')) # 'single', 'weekly', 'monthly', 'annual'
+    except (TypeError, ValueError):
         return jsonify({'error': 'Invalid calculation inputs.'}), 400
 
     # Multipliers
@@ -677,9 +730,16 @@ def api_calculate_emissions():
         'weekly': 5,
         'monthly': 22,
         'annual': 250
-    }.get(period, 250)
+    }
+    if not math.isfinite(distance_km) or distance_km <= 0 or distance_km > 200:
+        return jsonify({'error': 'Distance must be greater than 0 and no more than 200 km.'}), 400
+    if trips_per_day < 1 or trips_per_day > 20:
+        return jsonify({'error': 'Trips per day must be between 1 and 20.'}), 400
+    if period not in period_days:
+        return jsonify({'error': 'Choose single, weekly, monthly, or annual.'}), 400
+    days = period_days[period]
     
-    total_km = distance_km * trips_per_day * period_days
+    total_km = distance_km * trips_per_day * days
     
     factors = Config.EMISSION_FACTORS
     
@@ -724,7 +784,7 @@ def api_calculate_emissions():
         'total_km': total_km,
         'distance_km': distance_km,
         'trips_per_day': trips_per_day,
-        'period_days': period_days,
+        'period_days': days,
         'period': period,
         'baseline_car_kg': round(baseline_car_kg, 2),
         'breakdown': breakdown,

@@ -64,4 +64,15 @@ Do not commit the generated secret or put it in `.env.example`.
 
 Click **Reload** in the Web tab. PythonAnywhere will show the public URL for your account, typically `https://YOUR_USERNAME.pythonanywhere.com/`.
 
+## Updating the live app
+
+After a code change is pushed to GitHub, open a PythonAnywhere Bash console and run:
+
+```bash
+cd ~/smart-public-transport
+git pull origin main
+```
+
+Then click **Reload** in the Web tab. Keep the virtualenv and WSGI configuration set as above.
+
 For the current free account limits and expiry, see [PythonAnywhere's free account features](https://help.pythonanywhere.com/pages/FreeAccountsFeatures/). Their standard Flask setup uses a WSGI file and a virtualenv; see [the Flask setup guide](https://help.pythonanywhere.com/pages/Flask/).
