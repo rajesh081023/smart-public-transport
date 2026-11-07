@@ -6,7 +6,7 @@ load_dotenv()
 
 class Config:
     """Application configuration parameters."""
-    SECRET_KEY = os.getenv('SECRET_KEY', 'smart_transport_clean_mobility_secret_key_2026')
+    SECRET_KEY = os.getenv('SECRET_KEY')
     
     # Database Settings
     DB_TYPE = os.getenv('DB_TYPE', 'auto').lower()  # 'mysql', 'sqlite', or 'auto'

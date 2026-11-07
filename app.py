@@ -12,6 +12,8 @@ from db import query_db, determine_active_db
 
 app = Flask(__name__)
 app.config.from_object(Config)
+if not app.config.get('SECRET_KEY'):
+    raise RuntimeError('Set SECRET_KEY in the environment or .env before starting the app.')
 
 
 # ====================================================================
@@ -1135,10 +1137,15 @@ if __name__ == '__main__':
         from db import init_db
         init_db()
 
+    port = int(os.environ.get('PORT', 5000))
     print("\n" + "=" * 60)
     print(" Smart Public Transport & Clean Mobility System")
-    print(" Running on: http://127.0.0.1:5000")
+    print(f" Running on: http://127.0.0.1:{port}")
     print(" Database Engine: " + determine_active_db().upper())
     print("=" * 60 + "\n")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=os.environ.get('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'}
+    )

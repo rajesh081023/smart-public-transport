@@ -48,3 +48,4 @@ The app will start on http://127.0.0.1:5000.
 
 - The default database is SQLite unless `DB_TYPE=mysql` is configured.
 - For production, disable debug mode and use a secure secret key.
+- For a public Flask deployment, follow [DEPLOY_PYTHONANYWHERE.md](DEPLOY_PYTHONANYWHERE.md). Rotate the seeded administrator password before exposing the app.
