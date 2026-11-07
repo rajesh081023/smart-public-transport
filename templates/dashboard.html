@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Commuter Dashboard</h1>
+    <p>Welcome, {{ user.full_name }}</p>
+  </section>
+
+  <section class="grid">
+    <div class="stat"><h3>Total Trips</h3><p>{{ stats.total_trips if stats else 0 }}</p></div>
+    <div class="stat"><h3>Total Distance</h3><p>{{ stats.total_distance if stats else 0 }} km</p></div>
+    <div class="stat"><h3>CO2 Saved</h3><p>{{ stats.total_co2_saved if stats else 0 }} kg</p></div>
+    <div class="stat"><h3>Trees Equivalent</h3><p>{{ trees_equivalent if trees_equivalent else 0 }}</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Recent Journeys</h2>
+    {% for journey in journeys %}
+      <p>{{ journey.origin }} → {{ journey.destination }} · {{ journey.selected_mode }}</p>
+    {% else %}
+      <p>No journeys saved yet.</p>
+    {% endfor %}
+  </section>
+{% endblock %}

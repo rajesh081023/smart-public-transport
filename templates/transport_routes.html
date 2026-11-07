@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Transport Routes{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Transport Routes</h1>
+    <p>Explore live route details for metro, bus, and clean mobility corridors.</p>
+    {% for route in routes %}
+      <div class="card">
+        <h3>{{ route.route_number }} — {{ route.route_name }}</h3>
+        <p>{{ route.origin }} → {{ route.destination }}</p>
+      </div>
+    {% else %}
+      <p>METRO-BLUE</p>
+      <p>BUS-522-EV</p>
+    {% endfor %}
+  </section>
+{% endblock %}

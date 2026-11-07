@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Feedback{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Feedback & Community Suggestions</h1>
+    <form method="post">
+      <label>Name</label>
+      <input type="text" name="name">
+      <label>Email</label>
+      <input type="email" name="email">
+      <label>Category</label>
+      <select name="category">
+        <option>General Suggestion</option>
+        <option>Route Accuracy</option>
+        <option>Clean Mobility</option>
+      </select>
+      <label>Rating</label>
+      <select name="rating">
+        <option value="5">5</option>
+        <option value="4">4</option>
+        <option value="3">3</option>
+      </select>
+      <label>Comment</label>
+      <textarea name="comment" rows="4"></textarea>
+      <button type="submit">Submit Feedback</button>
+    </form>
+  </section>
+{% endblock %}

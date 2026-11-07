@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block title %}Clean Mobility{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Clean Mobility & EV Infrastructure</h1>
+    <p>Find EV charging hubs and sustainable transport options around the city.</p>
+    {% for station in stations %}
+      <div class="card">
+        <h3>{{ station.station_name }}</h3>
+        <p>{{ station.operator }} — {{ station.status }}</p>
+      </div>
+    {% else %}
+      <p>Tata EZ Charge</p>
+    {% endfor %}
+  </section>
+{% endblock %}
