@@ -13,9 +13,11 @@ Create a PythonAnywhere account, open a Bash console, then run:
 ```bash
 git clone https://github.com/rajesh081023/smart-public-transport.git
 cd smart-public-transport
-mkvirtualenv --python=/usr/bin/python3.11 smart-transport
+mkvirtualenv --python=/usr/local/bin/python3.11 smart-transport
 pip install -r requirements.txt
 ```
+
+Use `/usr/local/bin/python3.11` here. On PythonAnywhere's newer `innit` system image, the `/usr/bin/python3.11` symlink can create a broken virtualenv that fails to import `_posixsubprocess` when running `pip`. See [PythonAnywhere's virtualenv notes](https://help.pythonanywhere.com/pages/VirtualenvsExplained/).
 
 ## 3. Change the seeded administrator password
 
