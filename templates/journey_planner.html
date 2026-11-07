@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Smart Public Transport{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Smart Public Transport</h1>
+    <p>Discover cleaner, faster, and smarter ways to travel across the city.</p>
+  </section>
+
+  <section class="grid">
+    <div class="stat">
+      <h3>Routes</h3>
+      <p>{{ stats.routes if stats else 0 }}</p>
+    </div>
+    <div class="stat">
+      <h3>Stops</h3>
+      <p>{{ stats.stops if stats else 0 }}</p>
+    </div>
+    <div class="stat">
+      <h3>EV Stations</h3>
+      <p>{{ stats.ev_stations if stats else 0 }}</p>
+    </div>
+    <div class="stat">
+      <h3>Journeys Planned</h3>
+      <p>{{ stats.journeys_planned if stats else 0 }}</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Active Transit Routes</h2>
+    <ul>
+      {% for route in featured_routes %}
+        <li>{{ route.route_number }} — {{ route.route_name }}</li>
+      {% else %}
+        <li>METRO-BLUE</li>
+        <li>BUS-522-EV</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Community Feedback</h2>
+    {% for review in reviews %}
+      <p><strong>{{ review.name }}</strong> — {{ review.rating }}/5</p>
+    {% else %}
+      <p>Highly rated transit experience for city commuters.</p>
+    {% endfor %}
+  </section>
+{% endblock %}

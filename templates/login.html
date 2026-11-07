@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Carbon Calculator{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Carbon Emission & Savings Calculator</h1>
+    <p>Calculate the emissions impact of different commute choices.</p>
+    <form method="post" action="/api/calculate-emissions">
+      <label>Distance (km)</label>
+      <input type="number" name="distance_km" value="15" step="0.1">
+      <label>Trips per day</label>
+      <input type="number" name="trips_per_day" value="2">
+      <select name="period">
+        <option value="annual">Annual</option>
+        <option value="monthly">Monthly</option>
+        <option value="weekly">Weekly</option>
+        <option value="single">Single Trip</option>
+      </select>
+      <button type="submit">Calculate</button>
+    </form>
+  </section>
+{% endblock %}

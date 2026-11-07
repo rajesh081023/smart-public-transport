@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>System Governance & Analytics</h1>
+    <p>Transit operations overview and management tools.</p>
+  </section>
+
+  <section class="grid">
+    <div class="stat"><h3>Users</h3><p>{{ analytics.users_count }}</p></div>
+    <div class="stat"><h3>Routes</h3><p>{{ analytics.routes_count }}</p></div>
+    <div class="stat"><h3>Stops</h3><p>{{ analytics.stops_count }}</p></div>
+    <div class="stat"><h3>EV Stations</h3><p>{{ analytics.ev_count }}</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Recent Routes</h2>
+    {% for route in routes %}
+      <p>{{ route.route_number }} — {{ route.route_name }}</p>
+    {% else %}
+      <p>No routes available.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
